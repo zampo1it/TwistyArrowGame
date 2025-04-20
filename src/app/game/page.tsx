@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import BackButton from '@/components/BackButton';
 
 export default function GamePage() {
   const gameContainer = useRef<HTMLDivElement>(null);
@@ -17,7 +18,7 @@ export default function GamePage() {
       });
 
     const loadGame = async () => {
-      await waitForPhaser();
+      // await waitForPhaser();
       const { default: Game } = await import('@/game/main');
       new Game(gameContainer.current!);
     };
@@ -28,6 +29,8 @@ export default function GamePage() {
   return (
     <main className="w-screen h-screen m-0 p-0 overflow-hidden bg-black">
       <div ref={gameContainer} className="w-full h-full" />
+      {/* <BackButton /> */}
+
     </main>
   );
 }

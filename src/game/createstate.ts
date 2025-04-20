@@ -30,6 +30,11 @@ export default class CreateState extends P.State {
   private arrowsLeft!: number;
   private arrowText!: any;
 
+  private setupTarget() {
+    this.target.anchor.set(0.5);
+    this.target.scale.set(isMobile ? 0.35 : 0.45);
+  }
+
   private createDomUI() {
     // LEVEL
     const levelDiv = document.createElement("div");
@@ -68,16 +73,6 @@ export default class CreateState extends P.State {
 
   create() {
     this.createDomUI();
-    this.game.onPause.addOnce(() => {
-      document.querySelectorAll(".level-counter").forEach(el => el.remove());
-      document.querySelectorAll(".best-counter").forEach(el => el.remove());
-      document.querySelectorAll(".z-50").forEach(el => el.remove());
-
-    }, this);
-
-    this.game.onResume.addOnce(() => {
-      this.createDomUI();
-    }, this);
 
     const saved = localStorage.getItem("currentLevel");
     this.level = saved ? parseInt(saved) : 1; if (this.bestDom) {
@@ -129,14 +124,25 @@ export default class CreateState extends P.State {
     const screenHeight = this.game.height;
 
     this.arrowGroup = this.add.group();
-    this.target = this.add.sprite(centerX, screenHeight * 0.3, "target");
+    const circleTexture = localStorage.getItem("customCircle");
 
-    // Add arrows already sticking out of the target based on the level
-    const initialArrows = this.level; // Number of arrows based on the level
+    if (circleTexture) {
+      this.game.load.image("customCircle", circleTexture);
+      this.game.load.onLoadComplete.addOnce(() => {
+        this.target = this.add.sprite(centerX, screenHeight * 0.3, "customCircle");
+        this.setupTarget();
+      }, this);
+      this.game.load.start();
+    } else {
+      this.target = this.add.sprite(centerX, screenHeight * 0.3, "target");
+      this.setupTarget();
+    }
+
+    const initialArrows = this.level; 
     for (let i = 0; i < initialArrows; i++) {
-      const angle = (360 / initialArrows) * i; // Distribute arrows evenly
+      const angle = (360 / initialArrows) * i; 
       const radians = P.Math.degToRad(angle + 90);
-      const radiusOffset = 50; // Adjust radius offset if needed
+      const radiusOffset = 50; 
       const arrow = this.add.sprite(
         this.target.x + (this.target.width - radiusOffset) * Math.cos(radians),
         this.target.y + (this.target.width - radiusOffset) * Math.sin(radians),
@@ -144,23 +150,25 @@ export default class CreateState extends P.State {
       );
       arrow.anchor.set(0.5);
       arrow.scale.set(isMobile ? 0.7 : 1);
-      arrow.impactAngle = angle; // Store the angle for collision checks
-      arrow.angle = angle; // Rotate the arrow to match its position
+      arrow.impactAngle = angle; 
+      arrow.angle = angle; 
       this.arrowGroup.add(arrow);
     }
     this.bow = this.add.sprite(centerX, screenHeight * 0.885, "bow");
     this.bow.anchor.set(0.5);
     this.bow.scale.set(isMobile ? 0.14 : 0.20);
-    this.bow.angle = 135;
 
     this.bow.inputEnabled = true;
     this.bow.input.pixelPerfectClick = true;
     this.input.onDown.add(this.arrowThrow, this);
 
-    this.string = this.add.sprite(this.bow.x, this.bow.y, "tet");
-    this.string.anchor.set(0.5);
-    this.string.scale.set(isMobile ? 0.14 : 0.20);
-    this.string.angle = 135;
+    const customBowUsed = localStorage.getItem("customBowUsed") === "true";
+    if (!customBowUsed) {
+      this.string = this.add.sprite(this.bow.x, this.bow.y, "tet");
+      this.string.anchor.set(0.5);
+      this.string.scale.set(isMobile ? 0.14 : 0.20);
+      this.string.angle = 135;
+    }
 
     this.arrowStartY = screenHeight * 0.8;
     this.arrow = this.add.sprite(centerX, this.arrowStartY, "arrow");
@@ -266,7 +274,6 @@ export default class CreateState extends P.State {
           levelCompleteDiv.style.transform = "translateX(-50%) scale(1.6)";
         }, 50);
 
-        // Удаление
         setTimeout(() => {
           levelCompleteDiv.remove();
         }, 550);
@@ -289,16 +296,11 @@ export default class CreateState extends P.State {
     } else {
       this.failSound.play();
 
-      // Заставим стрелу вращаться и улететь
-      this.arrow.anchor.set(0.5); // вращаем вокруг центра
-
-      // Вращение
+      this.arrow.anchor.set(0.5); 
       this.add.tween(this.arrow)
         .to({ angle: this.arrow.angle + 720 }, 600, Phaser.Easing.Cubic.Out, true); // 2 оборота
 
-      // Полёт вбок и вверх
       this.Losttween = this.add.tween(this.arrow);
-
       this.Losttween.to(
         { x: this.world.centerX + 800, y: this.bow.y + 300 },
         isMobile ? 1000 : 450,
@@ -321,15 +323,18 @@ export default class CreateState extends P.State {
     const now = this.time.now;
     if (now - this.lastShotTime < 500) return;
     if (navigator.vibrate) {
-      navigator.vibrate(100); // короткая вибрация при выстреле
+      navigator.vibrate(100); 
     }
     this.lastShotTime = now;
 
-    this.string.visible = false;
+    const customBowUsed = localStorage.getItem("customBowUsed") === "true";
+    if (!customBowUsed) {
+      this.string.visible = false;
 
-    this.time.events.add(250, () => {
-      this.string.visible = true;
-    });
+      this.time.events.add(250, () => {
+        this.string.visible = true;
+      });
+    }
 
     this.lastShotTime = now;
     this.twee = this.add.tween(this.arrow);

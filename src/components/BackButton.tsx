@@ -6,8 +6,9 @@ import Link from "next/link";
 export default function BackButton() {
   const pathname = usePathname();
 
-  if (pathname === "/") return null;
-
+  // if (pathname === "/") return null;
+  console.log("BackButton rendered");
+  console.log("pathname:", pathname);
   return (
     <Link
       href="/"
