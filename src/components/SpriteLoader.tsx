@@ -1,25 +1,14 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import React, { useRef, useState } from "react";
 
-export default function SpriteLoader() {
-  const bowInputRef = useRef<HTMLInputElement>(null);
-  const arrowInputRef = useRef<HTMLInputElement>(null);
-  const circleInputRef = useRef<HTMLInputElement>(null);
+const SpriteLoader = () => {
+  const [bowName, setBowName] = useState("Файл не выбран");
+  const [arrowName, setArrowName] = useState("Файл не выбран");
+  const [circleName, setCircleName] = useState("Файл не выбран");
+  const [changesPending, setChangesPending] = useState(false);
 
-  const [bowName, setBowName] = useState("No file chosen");
-  const [arrowName, setArrowName] = useState("No file chosen");
-  const [circleName, setCircleName] = useState("No file chosen");
-  const [hasCustom, setHasCustom] = useState(false);
-
-  useEffect(() => {
-    const bow = localStorage.getItem("customBow");
-    const arrow = localStorage.getItem("customArrow");
-    const circle = localStorage.getItem("customCircle");
-    if (bow || arrow || circle) {
-      setHasCustom(true);
-    }
-  }, []);
+  const pendingUploadsRef = useRef<Promise<void>[]>([]);
 
   const handleUpload = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -29,69 +18,66 @@ export default function SpriteLoader() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const isBow = storageKey === "customBow";
-        const isArrow = storageKey === "customArrow";
-        const isCircle = storageKey === "customCircle";
+    const uploadPromise = new Promise<void>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
 
-        const targetWidth = isCircle ? 480 : isBow ? 1500 : 128;
-        const targetHeight = isCircle ? 480 : isBow ? 800 : 128;
+          const isBow = storageKey === "customBow";
+          const isArrow = storageKey === "customArrow";
+          const isTarget = storageKey === "customCircle";
 
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
+          const targetWidth = isTarget ? 480 : isBow ? 1500 : 128;
+          const targetHeight = isTarget ? 480 : isBow ? 800 : 128;
 
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
+          const w = targetWidth;
+          const h = targetHeight;
 
-        const scale = Math.min(targetWidth / img.width, targetHeight / img.height);
-        const w = img.width * scale;
-        const h = img.height * scale;
+          canvas.width = w;
+          canvas.height = h;
 
-        ctx?.clearRect(0, 0, targetWidth, targetHeight);
+          if (isTarget && ctx) {
+            ctx.beginPath();
+            ctx.arc(w / 2, h / 2, Math.min(w, h) / 2, 0, Math.PI * 2);
+            ctx.clip();
+          }
 
-        if (isCircle) {
-          ctx?.save();
-          ctx?.beginPath();
-          ctx?.arc(targetWidth / 2, targetHeight / 2, targetWidth / 2, 0, Math.PI * 2);
-          ctx?.clip();
-        }
+          ctx?.drawImage(img, 0, 0, w, h);
+          const dataURL = canvas.toDataURL("image/png");
+          localStorage.setItem(storageKey, dataURL);
 
-        if (isBow) {
-          ctx?.translate(targetWidth / 2, targetHeight / 2);
-          ctx?.drawImage(img, -w / 2, -h / 2, w, h);
-        } else {
-          const x = (targetWidth - w) / 2;
-          const y = (targetHeight - h) / 2;
-          ctx?.drawImage(img, x, y, w, h);
-        }
+          if (isBow) {
+            localStorage.setItem("customBowUsed", "true");
+          }
 
-        if (isCircle) {
-          ctx?.restore();
-        }
-
-        const resizedDataUrl = canvas.toDataURL("image/png");
-        localStorage.setItem(storageKey, resizedDataUrl);
-
-        if (isBow) {
-          localStorage.setItem("customBowUsed", "true");
-        }
-
-        setHasCustom(true);
-        setName(file.name);
+          setName(file.name);
+          setChangesPending(true);
+          resolve();
+        };
+        img.src = reader.result as string;
       };
-      img.src = reader.result as string;
-    };
-    reader.readAsDataURL(file);
+      reader.readAsDataURL(file);
+    });
+
+    pendingUploadsRef.current.push(uploadPromise);
+
+    e.target.value = "";
   };
 
-  const applyChanges = () => {
+  const applyChanges = async () => {
+    const uploads = [...pendingUploadsRef.current];
+    pendingUploadsRef.current = [];
+
+    if (uploads.length === 0) return;
+
+    await Promise.all(uploads);
     location.reload();
   };
 
-  const resetDefaults = () => {
+  const reset = () => {
     localStorage.removeItem("customBow");
     localStorage.removeItem("customArrow");
     localStorage.removeItem("customCircle");
@@ -100,83 +86,60 @@ export default function SpriteLoader() {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-4 bg-white bg-opacity-90 p-4 rounded shadow-lg text-black text-sm">
-      <div className="flex flex-col gap-1">
-        <span>Upload Bow:</span>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => bowInputRef.current?.click()}
-            className="px-2 py-1 bg-black text-white rounded"
-          >
-            Choose file
-          </button>
-          <span className="text-xs text-gray-600">{bowName}</span>
-        </div>
-        <input
-          type="file"
-          ref={bowInputRef}
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => handleUpload(e, "customBow", setBowName)}
-        />
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 text-sm text-white flex flex-col gap-2 items-center">
+      <div className="flex gap-4">
+        <label>
+          <input
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => handleUpload(e, "customBow", setBowName)}
+          />
+          <span className="bg-black/60 px-3 py-1 rounded cursor-pointer hover:bg-black/80">
+            Bow
+          </span>
+        </label>
+        <label>
+          <input
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => handleUpload(e, "customArrow", setArrowName)}
+          />
+          <span className="bg-black/60 px-3 py-1 rounded cursor-pointer hover:bg-black/80">
+            Arrow
+          </span>
+        </label>
+        <label>
+          <input
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => handleUpload(e, "customCircle", setCircleName)}
+          />
+          <span className="bg-black/60 px-3 py-1 rounded cursor-pointer hover:bg-black/80">
+            Target
+          </span>
+        </label>
       </div>
 
-      <div className="flex flex-col gap-1">
-        <span>Upload Arrow:</span>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => arrowInputRef.current?.click()}
-            className="px-2 py-1 bg-black text-white rounded"
-          >
-            Choose file
-          </button>
-          <span className="text-xs text-gray-600">{arrowName}</span>
-        </div>
-        <input
-          type="file"
-          ref={arrowInputRef}
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => handleUpload(e, "customArrow", setArrowName)}
-        />
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <span>Upload Circle:</span>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => circleInputRef.current?.click()}
-            className="px-2 py-1 bg-black text-white rounded"
-          >
-            Choose file
-          </button>
-          <span className="text-xs text-gray-600">{circleName}</span>
-        </div>
-        <input
-          type="file"
-          ref={circleInputRef}
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => handleUpload(e, "customCircle", setCircleName)}
-        />
-      </div>
-
-      <div className="flex gap-2 mt-2">
-        {hasCustom && (
-          <button
-            onClick={applyChanges}
-            className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800 transition"
-          >
-            Apply
-          </button>
-        )}
+      {changesPending && (
         <button
-          onClick={resetDefaults}
-          className="px-3 py-1 bg-gray-300 text-black rounded hover:bg-gray-400 transition"
+          onClick={applyChanges}
+          className="mt-2 bg-white text-black font-semibold px-4 py-1 rounded hover:bg-gray-200"
         >
-          Reset to Default
+          Apply
         </button>
-      </div>
+      )}
+
+      <button
+        onClick={reset}
+        className="mt-1 text-xs underline underline-offset-2 text-black/60 hover:text-pink-500"
+      >
+        Reset to default
+      </button>
     </div>
   );
-}
+};
+
+export default SpriteLoader;

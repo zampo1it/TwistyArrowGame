@@ -36,9 +36,16 @@ export default class CreateState extends P.State {
   }
 
   private createDomUI() {
+
+    const saved = localStorage.getItem("currentLevel");
+    this.level = saved ? parseInt(saved) : 1;
+    
     // LEVEL
     const levelDiv = document.createElement("div");
-
+    levelDiv.className = `
+      fixed left-4 top-7 
+      bg-black rounded-md overflow-hidden shadow-lg border border-white/10 w-28 z-50
+    `;
     levelDiv.innerHTML = `
       <div class="text-xs uppercase bg-white/10 px-3 py-1 text-white tracking-wider rounded-t-md border-b border-white/20 text-center">
         LEVEL
@@ -67,136 +74,114 @@ export default class CreateState extends P.State {
     `;
     document.body.appendChild(bestDiv);
     this.bestDom = bestDiv;
-    levelDiv.className = "level-counter fixed left-4 top-7 ...";
-    bestDiv.className = "best-counter fixed right-4 top-7 ...";
+
   }
 
-  create() {
+  private initGame() {
     this.createDomUI();
-
-    const saved = localStorage.getItem("currentLevel");
-    this.level = saved ? parseInt(saved) : 1; if (this.bestDom) {
-      this.bestDom.remove();
-    }
+ 
     gameOptions.rotationSpeed = 2 + (this.level - 1) * 0.3;
+  
     const savedBest = localStorage.getItem("bestLevel");
     bestLevel = savedBest ? parseInt(savedBest) : 1;
-    const bestDiv = document.createElement("div");
-    bestDiv.className = `
-  fixed right-4 top-7 
-  bg-black rounded-md overflow-hidden border border-white/10 w-28 z-50
-`;
-
-    bestDiv.innerHTML = `
-  <div class="text-xs uppercase bg-white/10 px-3 py-1 text-white tracking-wider rounded-t-md border-b border-white/20 text-center">
-    BEST
-  </div>
-  <div class="text-3xl font-bold text-white px-4 py-2 text-center">
-  ${bestLevel}
-  </div>
-  `;
-
-    const levelDiv = document.createElement("div");
-    levelDiv.className = `
-  fixed left-4 top-7 
-  bg-black rounded-md overflow-hidden border border-white/10 w-28 z-50
-  `;
-
-
-    levelDiv.innerHTML = `
-  <div class="text-xs uppercase bg-white/10 px-3 py-1 text-white tracking-wider rounded-t-md border-b border-white/20 text-center">
-  LEVEL
-  </div>
-  <div class="text-3xl font-bold text-white px-4 py-2 text-center">
-  ${this.level}
-  </div>
-  `;
-    document.body.appendChild(bestDiv);
-    this.bestDom = bestDiv;
+  
     isMobile = this.game.device.android || this.game.device.iOS;
     this.shootSound = this.add.audio("shoot");
     this.failSound = this.add.audio("fail");
-    this.physics.startSystem(P.Physics.ARCADE);
-    this.stage.backgroundColor = "#fff6de";
-    document.body.className = "bg-white w-full h-screen overflow-hidden";
-
+  
+    // Добавляем классы вместо их замены
+    document.body.classList.add("bg-white", "w-full", "h-screen", "overflow-hidden");
+  
     const centerX = this.world.centerX;
     const screenHeight = this.game.height;
-
+  
     this.arrowGroup = this.add.group();
     const circleTexture = localStorage.getItem("customCircle");
+
+    const setupGameAfterTargetLoad = () => {
+      const initialArrows = this.level;
+      for (let i = 0; i < initialArrows; i++) {
+        const angle = (360 / initialArrows) * i;
+        const radians = P.Math.degToRad(angle + 90);
+        const radiusOffset = 50;
+
+        const arrow = this.add.sprite(
+          this.target.x + (this.target.width - radiusOffset) * Math.cos(radians),
+          this.target.y + (this.target.width - radiusOffset) * Math.sin(radians),
+          "arrow"
+        );
+        arrow.anchor.set(0.5);
+        arrow.scale.set(isMobile ? 0.7 : 1);
+        arrow.impactAngle = angle;
+        arrow.angle = angle;
+        this.arrowGroup.add(arrow);
+      }
+
+      this.bow = this.add.sprite(centerX, screenHeight * 0.885, "bow");
+      this.bow.anchor.set(0.5);
+      this.bow.scale.set(isMobile ? 0.14 : 0.20);
+
+      // Добавляем тетиву (string)
+      this.string = this.add.sprite(this.bow.x, this.bow.y, "tet");
+      this.string.anchor.set(0.5);
+      this.string.scale.set(isMobile ? 0.14 : 0.20);
+      this.string.angle = 135;
+
+      this.bow.inputEnabled = true;
+      this.bow.input.pixelPerfectClick = true;
+      this.input.onDown.add(this.arrowThrow, this);
+
+      this.arrowStartY = screenHeight * 0.8;
+      this.arrow = this.add.sprite(centerX, this.arrowStartY, "arrow");
+      this.arrow.anchor.set(0.5, 0);
+      this.arrow.scale.set(isMobile ? 0.7 : 1);
+
+      this.arrowsLeft = this.level + 2;
+
+      this.arrowText = this.add.text(centerX, screenHeight * 0.3, this.arrowsLeft.toString(), {
+        font: "bold 60px Arial",
+        fill: "#ffffff",
+      });
+      this.arrowText.anchor.set(0.5);
+
+      this.physics.enable([this.target, this.arrow], P.Physics.ARCADE);
+      this.arrow.body.collideWorldBounds = true;
+    };
 
     if (circleTexture) {
       this.game.load.image("customCircle", circleTexture);
       this.game.load.onLoadComplete.addOnce(() => {
         this.target = this.add.sprite(centerX, screenHeight * 0.3, "customCircle");
         this.setupTarget();
+        setupGameAfterTargetLoad();
       }, this);
       this.game.load.start();
     } else {
       this.target = this.add.sprite(centerX, screenHeight * 0.3, "target");
       this.setupTarget();
+      setupGameAfterTargetLoad();
+    }
+  }
+
+  create() {
+    this.physics.startSystem(P.Physics.ARCADE);
+    this.stage.backgroundColor = "#fff6de";
+    isMobile = this.game.device.android || this.game.device.iOS;
+
+    if (!this.game.cache.checkImageKey("target")) {
+      this.time.events.add(100, () => this.create());
+      return;
     }
 
-    const initialArrows = this.level; 
-    for (let i = 0; i < initialArrows; i++) {
-      const angle = (360 / initialArrows) * i; 
-      const radians = P.Math.degToRad(angle + 90);
-      const radiusOffset = 50; 
-      const arrow = this.add.sprite(
-        this.target.x + (this.target.width - radiusOffset) * Math.cos(radians),
-        this.target.y + (this.target.width - radiusOffset) * Math.sin(radians),
-        "arrow"
-      );
-      arrow.anchor.set(0.5);
-      arrow.scale.set(isMobile ? 0.7 : 1);
-      arrow.impactAngle = angle; 
-      arrow.angle = angle; 
-      this.arrowGroup.add(arrow);
-    }
-    this.bow = this.add.sprite(centerX, screenHeight * 0.885, "bow");
-    this.bow.anchor.set(0.5);
-    this.bow.scale.set(isMobile ? 0.14 : 0.20);
-
-    this.bow.inputEnabled = true;
-    this.bow.input.pixelPerfectClick = true;
-    this.input.onDown.add(this.arrowThrow, this);
-
-    const customBowUsed = localStorage.getItem("customBowUsed") === "true";
-    if (!customBowUsed) {
-      this.string = this.add.sprite(this.bow.x, this.bow.y, "tet");
-      this.string.anchor.set(0.5);
-      this.string.scale.set(isMobile ? 0.14 : 0.20);
-      this.string.angle = 135;
-    }
-
-    this.arrowStartY = screenHeight * 0.8;
-    this.arrow = this.add.sprite(centerX, this.arrowStartY, "arrow");
-    this.arrow.anchor.set(0.5, 0);
-    this.arrow.scale.set(isMobile ? 0.7 : 1);
-
-    this.arrowsLeft = this.level + 2;
-
-
-    document.body.appendChild(levelDiv);
-    this.levelDom = levelDiv;
-
-    this.arrowText = this.add.text(centerX, screenHeight * 0.3, this.arrowsLeft.toString(), {
-      font: "bold 60px Arial",
-      fill: "#ffffff",
-    });
-    this.arrowText.anchor.set(0.5);
-    this.target.anchor.set(0.5);
-    this.target.scale.set(isMobile ? 0.35 : 0.45);
-
-
-    this.physics.enable([this.target, this.arrow], P.Physics.ARCADE);
-    this.arrow.body.collideWorldBounds = true;
-
-
+    this.initGame(); // безопасно
   }
 
   update() {
+
+    if (!this.target) {
+      return;
+    }
+    
     if (this.level % 2 === 0) {
       this.target.angle -= gameOptions.rotationSpeed;
     } else {
@@ -249,14 +234,22 @@ export default class CreateState extends P.State {
       if (this.arrowsLeft === 0) {
         const savedBest = localStorage.getItem("bestLevel");
         const bestLevel = savedBest ? parseInt(savedBest) : 1;
-
+      
+        const nextLevel = this.level + 1;
+      
         if (nextLevel > bestLevel) {
           localStorage.setItem("bestLevel", nextLevel.toString());
           const bestValueDiv = this.bestDom?.querySelector("div:last-child");
           if (bestValueDiv) bestValueDiv.textContent = nextLevel.toString();
         }
+      
         localStorage.setItem("currentLevel", nextLevel.toString());
-        //gameOptions.rotationSpeed += 0.3;
+      
+        const levelValueDiv = this.levelDom.querySelector("div:last-child");
+        if (levelValueDiv) levelValueDiv.textContent = nextLevel.toString();
+      
+        this.level = nextLevel; // Обновляем текущий уровень в памяти
+      
         const levelCompleteDiv = document.createElement("div");
         levelCompleteDiv.className = `
           fixed left-1/2 top-[55%]
@@ -277,9 +270,6 @@ export default class CreateState extends P.State {
         setTimeout(() => {
           levelCompleteDiv.remove();
         }, 550);
-
-
-        this.levelDom.remove();
         this.state.restart();
         return;
       }
@@ -296,7 +286,7 @@ export default class CreateState extends P.State {
     } else {
       this.failSound.play();
 
-      this.arrow.anchor.set(0.5); 
+      this.arrow.anchor.set(0.5);
       this.add.tween(this.arrow)
         .to({ angle: this.arrow.angle + 720 }, 600, Phaser.Easing.Cubic.Out, true); // 2 оборота
 
@@ -326,17 +316,16 @@ export default class CreateState extends P.State {
       navigator.vibrate(100); 
     }
     this.lastShotTime = now;
-
+  
     const customBowUsed = localStorage.getItem("customBowUsed") === "true";
-    if (!customBowUsed) {
+    if (!customBowUsed && this.string) { 
       this.string.visible = false;
-
+  
       this.time.events.add(250, () => {
         this.string.visible = true;
       });
     }
-
-    this.lastShotTime = now;
+  
     this.twee = this.add.tween(this.arrow);
     this.twee.to({ y: this.target.y + this.target.width / 2 }, gameOptions.throwSpeed);
     this.twee.start();
