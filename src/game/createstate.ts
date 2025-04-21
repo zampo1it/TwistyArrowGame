@@ -30,6 +30,14 @@ export default class CreateState extends P.State {
   private arrowsLeft!: number;
   private arrowText!: any;
 
+  private timerText!: any;
+  private timerStartTime: number = 0;
+  private reamingTime: number = 0;
+  private timerRunning: boolean = false;
+  private countdownDuration: number = 0;
+  private gameOverTriggered: boolean = false;
+  private multiplier: number = 2; // CLIENT CAN CHANGE THIS
+
   private setupTarget() {
     this.target.anchor.set(0.5);
     this.target.scale.set(isMobile ? 0.35 : 0.45);
@@ -37,9 +45,10 @@ export default class CreateState extends P.State {
 
   private createDomUI() {
 
-    const saved = localStorage.getItem("currentLevel");
-    this.level = saved ? parseInt(saved) : 1;
-    
+    // короче, эта штука сохраняет уровень в localStorage, но мне сказали ЭТОГО НЕ ДЕЛАТЬ.......
+    // const saved = localStorage.getItem("currentLevel");
+    // this.level = saved ? parseInt(saved) : 1;
+
     // LEVEL
     const levelDiv = document.createElement("div");
     levelDiv.className = `
@@ -79,22 +88,21 @@ export default class CreateState extends P.State {
 
   private initGame() {
     this.createDomUI();
- 
+
     gameOptions.rotationSpeed = 2 + (this.level - 1) * 0.3;
-  
+
     const savedBest = localStorage.getItem("bestLevel");
     bestLevel = savedBest ? parseInt(savedBest) : 1;
-  
+
     isMobile = this.game.device.android || this.game.device.iOS;
     this.shootSound = this.add.audio("shoot");
     this.failSound = this.add.audio("fail");
-  
-    // Добавляем классы вместо их замены
+
     document.body.classList.add("bg-white", "w-full", "h-screen", "overflow-hidden");
-  
+
     const centerX = this.world.centerX;
     const screenHeight = this.game.height;
-  
+
     this.arrowGroup = this.add.group();
     const circleTexture = localStorage.getItem("customCircle");
 
@@ -161,19 +169,44 @@ export default class CreateState extends P.State {
       this.setupTarget();
       setupGameAfterTargetLoad();
     }
+    this.timerText = this.add.text(
+      this.world.centerX,
+      60,
+      "00:00",
+      {
+        font: "bold 28px Arial",
+        fill: "#000000",
+        align: "center",
+      }
+    );
+    this.timerText.anchor.set(0.5);
   }
 
   create() {
+    localStorage.setItem("gameMultiplier", this.multiplier.toString());
+
+    const navigationEntry = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming;
+    if (!navigationEntry?.type.includes("reload")) {
+      localStorage.setItem("currentLevel", "1");
+    }
     this.physics.startSystem(P.Physics.ARCADE);
     this.stage.backgroundColor = "#fff6de";
     isMobile = this.game.device.android || this.game.device.iOS;
 
-    if (!this.game.cache.checkImageKey("target")) {
-      this.time.events.add(100, () => this.create());
-      return;
-    }
+    this.timerText = this.add.text(this.world.centerX, 80, "", {
+      font: "bold 32px Arial",
+      fill: "#000",
+    });
+    this.timerText.anchor.set(0.5);
+    this.timerText.setText("");
+    this.timerRunning = false;
+    this.gameOverTriggered = false;
+    this.timerStartTime = 0;
 
-    this.initGame(); // безопасно
+    this.initGame();
+    this.timerStartTime = 0;
+    this.timerRunning = false;
+    this.timerText.setText("00:00");
   }
 
   update() {
@@ -181,7 +214,20 @@ export default class CreateState extends P.State {
     if (!this.target) {
       return;
     }
-    
+
+    if (this.timerRunning) {
+      const elapsed = this.time.now - this.timerStartTime;
+      const minutes = Math.floor(elapsed / 60000);
+      const seconds = Math.floor((elapsed % 60000) / 1000);
+      const millis = Math.floor((elapsed % 1000) / 10);
+      this.timerText.setText(
+        `${minutes.toString().padStart(2, "0")}:${seconds
+          .toString()
+          .padStart(2, "0")}.${millis.toString().padStart(2, "0")}`
+      );
+    }
+    this.remainingTime = this.countdownDuration - (this.time.now - this.timerStart);
+
     if (this.level % 2 === 0) {
       this.target.angle -= gameOptions.rotationSpeed;
     } else {
@@ -201,7 +247,60 @@ export default class CreateState extends P.State {
       child.x = this.target.x + (this.target.width - radiusOffset) * Math.cos(radians);
       child.y = this.target.y + (this.target.width - radiusOffset) * Math.sin(radians);
     }
+
+    if (this.timerRunning && !this.gameOverTriggered) {
+      const elapsed = this.time.now - this.timerStartTime;
+      const remaining = Math.max(0, this.countdownDuration - elapsed);
+
+      const seconds = Math.floor(remaining / 1000);
+      const millis = Math.floor((remaining % 1000) / 10);
+      this.timerText.setText(`${seconds.toString().padStart(2, "0")}:${millis.toString().padStart(2, "0")}`);
+
+      if (remaining <= 0) {
+        this.triggerGameOver();
+      }
+    }
   }
+
+  private triggerGameOver() {
+    this.gameOverTriggered = true;
+
+    const levelCompleteDiv = document.createElement("div");
+    levelCompleteDiv.className = `
+      fixed left-1/2 top-[55%]
+      text-3xl font-extrabold text-black 
+      opacity-60 z-50 pointer-events-none text-center w-screen
+    `;
+    levelCompleteDiv.style.transform = "translateX(-50%) scale(1)";
+    levelCompleteDiv.style.transition = "transform 0.5s ease-out";
+    levelCompleteDiv.innerText = "Game Over";
+    document.body.appendChild(levelCompleteDiv);
+    let name = localStorage.getItem("playerName");
+    if (!name) {
+      name = prompt("Enter your name") || "Anonymous";
+      localStorage.setItem("playerName", name);
+    }
+
+    const leaderboard = JSON.parse(localStorage.getItem("leaderboard") || "[]");
+    leaderboard.push({
+      name,
+      level: this.level,
+      timeLeft: Math.max(this.remainingTime, 0),
+    });
+    localStorage.setItem("leaderboard", JSON.stringify(leaderboard));
+    
+    this.level = 1;
+    // Увеличение
+    setTimeout(() => {
+      levelCompleteDiv.style.transform = "translateX(-50%) scale(1.6)";
+    }, 50);
+
+    setTimeout(() => {
+      levelCompleteDiv.remove();
+    }, 550);
+    this.state.restart();
+  }
+
 
   private collisionHandler() {
     this.validThrough = true;
@@ -234,22 +333,22 @@ export default class CreateState extends P.State {
       if (this.arrowsLeft === 0) {
         const savedBest = localStorage.getItem("bestLevel");
         const bestLevel = savedBest ? parseInt(savedBest) : 1;
-      
+
         const nextLevel = this.level + 1;
-      
+
         if (nextLevel > bestLevel) {
           localStorage.setItem("bestLevel", nextLevel.toString());
           const bestValueDiv = this.bestDom?.querySelector("div:last-child");
           if (bestValueDiv) bestValueDiv.textContent = nextLevel.toString();
         }
-      
+
         localStorage.setItem("currentLevel", nextLevel.toString());
-      
+
         const levelValueDiv = this.levelDom.querySelector("div:last-child");
         if (levelValueDiv) levelValueDiv.textContent = nextLevel.toString();
-      
+
         this.level = nextLevel; // Обновляем текущий уровень в памяти
-      
+
         const levelCompleteDiv = document.createElement("div");
         levelCompleteDiv.className = `
           fixed left-1/2 top-[55%]
@@ -260,36 +359,58 @@ export default class CreateState extends P.State {
         levelCompleteDiv.style.transition = "transform 0.5s ease-out";
         levelCompleteDiv.innerText = "LEVEL COMPLETE";
         document.body.appendChild(levelCompleteDiv);
+        let name = localStorage.getItem("playerName");
 
-
+        if (!name) {
+          name = prompt("Enter your name") || "Anonymous";
+          localStorage.setItem("playerName", name);
+        }
+    
+        
         // Увеличение
         setTimeout(() => {
           levelCompleteDiv.style.transform = "translateX(-50%) scale(1.6)";
         }, 50);
-
+        
         setTimeout(() => {
           levelCompleteDiv.remove();
         }, 550);
         this.state.restart();
         return;
       }
-
-
+      
+      
       const newArrow = this.add.sprite(this.arrow.x, this.arrow.y, "arrow");
       newArrow.anchor.set(0.5);
       newArrow.scale.set(isMobile ? 0.7 : 1);
-
+      
       newArrow.impactAngle = this.target.angle;
-
+      
       this.arrowGroup.add(newArrow);
       this.arrow.y = this.arrowStartY;
     } else {
+      this.timerRunning = false;
       this.failSound.play();
-
+ 
+      this.remainingTime = this.countdownDuration - (this.time.now - this.timerStart);
+      let name = localStorage.getItem("playerName");
+      if (!name) {
+        name = prompt("Enter your name") || "Anonymous";
+        localStorage.setItem("playerName", name);
+      }
+  
+      const leaderboard = JSON.parse(localStorage.getItem("leaderboard") || "[]");
+      leaderboard.push({
+        name,
+        level: this.level,
+        timeLeft: this.remainingTime,
+      });
+      localStorage.setItem("leaderboard", JSON.stringify(leaderboard));
+      
       this.arrow.anchor.set(0.5);
       this.add.tween(this.arrow)
-        .to({ angle: this.arrow.angle + 720 }, 600, Phaser.Easing.Cubic.Out, true); // 2 оборота
-
+      .to({ angle: this.arrow.angle + 720 }, 600, Phaser.Easing.Cubic.Out, true); // 2 оборота
+      
       this.Losttween = this.add.tween(this.arrow);
       this.Losttween.to(
         { x: this.world.centerX + 800, y: this.bow.y + 300 },
@@ -297,6 +418,7 @@ export default class CreateState extends P.State {
         Phaser.Easing.Cubic.InOut,
         true
       );
+
 
       this.Losttween.onComplete.add(() => {
         //gameOptions.rotationSpeed = 2;
@@ -310,22 +432,27 @@ export default class CreateState extends P.State {
   }
 
   private arrowThrow() {
+    if (!this.timerRunning) {
+      this.countdownDuration = this.multiplier * this.arrowsLeft * 1000;
+      this.timerStartTime = this.time.now;
+      this.timerRunning = true;
+    }
     const now = this.time.now;
     if (now - this.lastShotTime < 500) return;
     if (navigator.vibrate) {
-      navigator.vibrate(100); 
+      navigator.vibrate(100);
     }
     this.lastShotTime = now;
-  
+
     const customBowUsed = localStorage.getItem("customBowUsed") === "true";
-    if (!customBowUsed && this.string) { 
+    if (!customBowUsed && this.string) {
       this.string.visible = false;
-  
+
       this.time.events.add(250, () => {
         this.string.visible = true;
       });
     }
-  
+
     this.twee = this.add.tween(this.arrow);
     this.twee.to({ y: this.target.y + this.target.width / 2 }, gameOptions.throwSpeed);
     this.twee.start();

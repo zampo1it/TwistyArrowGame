@@ -29,7 +29,7 @@ export default function GamePage() {
   return (
     <main className="w-screen h-screen m-0 p-0 overflow-hidden bg-black">
       <div ref={gameContainer} className="w-full h-full" />
-      {/* <BackButton /> */}
+      <BackButton /> 
 
     </main>
   );
