@@ -50,7 +50,11 @@ export default class CreateState extends P.State {
     // this.level = saved ? parseInt(saved) : 1;
 
     // LEVEL
+    document.querySelector("#levelDiv")?.remove();
+
     const levelDiv = document.createElement("div");
+    levelDiv.id = "levelDiv";
+
     levelDiv.className = `
       fixed left-4 top-7 
       bg-black rounded-md overflow-hidden shadow-lg border border-white/10 w-28 z-50
@@ -64,11 +68,15 @@ export default class CreateState extends P.State {
       </div>
     `;
     document.body.appendChild(levelDiv);
-    this.levelDom = levelDiv;
 
+    this.levelDom = levelDiv;
+    
     // BEST
+    document.querySelector("#bestDiv")?.remove();
     const bestLevel = parseInt(localStorage.getItem("bestLevel") || "1");
     const bestDiv = document.createElement("div");
+    bestDiv.id = "bestDiv";
+
     bestDiv.className = `
       fixed right-4 top-7 
       bg-black rounded-md overflow-hidden shadow-lg border border-white/10 w-28 z-50
