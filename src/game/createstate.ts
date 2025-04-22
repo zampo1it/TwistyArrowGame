@@ -204,12 +204,6 @@ export default class CreateState extends P.State {
     this.stage.backgroundColor = "#fff6de";
     isMobile = this.game.device.android || this.game.device.iOS;
 
-    this.timerText = this.add.text(this.world.centerX, 80, "", {
-      font: "bold 32px Arial",
-      fill: "#000",
-    });
-    this.timerText.anchor.set(0.5);
-    this.timerText.setText("");
     this.timerRunning = false;
     this.gameOverTriggered = false;
     this.timerStartTime = 0;
@@ -228,7 +222,9 @@ export default class CreateState extends P.State {
 
     this.timerStartTime = 0;
     this.timerRunning = false;
-    this.timerText.setText("00:00");
+    const cdS = (this.arrowsLeft || this.level + 2) * this.multiplier;
+
+    this.timerText.setText(cdS + ":00");
   }
 
   update() {
