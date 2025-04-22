@@ -5,18 +5,15 @@ import Link from "next/link";
 
 type LeaderEntry = {
   name: string;
-  level: number;
+  score: number;
 };
 
 export default function LeaderboardPage() {
   const [leaders, setLeaders] = useState<LeaderEntry[]>([]);
-  const [multiplier, setMultiplier] = useState<number>(1); // Default to 1
 
   useEffect(() => {
     const storedLeaders = JSON.parse(localStorage.getItem("leaderboard") || "[]");
-    const storedMultiplier = parseInt(localStorage.getItem("gameMultiplier") || "1", 10);
     setLeaders(storedLeaders);
-    setMultiplier(storedMultiplier);
   }, []);
 
   const clearLeaderboard = () => {
@@ -33,23 +30,17 @@ export default function LeaderboardPage() {
           <tr>
             <th className="p-2 border-b">#</th>
             <th className="p-2 border-b">Name</th>
-            <th className="p-2 border-b">Level</th>
             <th className="p-2 border-b">Score</th>
           </tr>
         </thead>
         <tbody>
           {leaders
-            .sort((a, b) => {
-              // Сортировка: сначала по уровню, потом по имени
-              if (b.level !== a.level) return b.level - a.level;
-              return a.name.localeCompare(b.name);
-            })
+            .sort((a, b) => b.score - a.score)
             .map((entry, idx) => (
               <tr key={idx} className="text-center">
                 <td className="p-2 border-b">{idx + 1}</td>
                 <td className="p-2 border-b">{entry.name}</td>
-                <td className="p-2 border-b">{entry.level}</td>
-                <td className="p-2 border-b">{entry.level * multiplier}</td>
+                <td className="p-2 border-b">{entry.score}</td>
               </tr>
             ))}
         </tbody>

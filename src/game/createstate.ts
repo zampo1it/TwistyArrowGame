@@ -23,7 +23,10 @@ export default class CreateState extends P.State {
   private levelDom!: HTMLDivElement;
   private shootSound!: any;
   private failSound!: any;
+  private score: number = 0;
+  private scoreText!: any;
 
+  private countdownStartTime: number = 0;
 
 
   private level: number = 1;
@@ -70,7 +73,7 @@ export default class CreateState extends P.State {
     document.body.appendChild(levelDiv);
 
     this.levelDom = levelDiv;
-    
+
     // BEST
     document.querySelector("#bestDiv")?.remove();
     const bestLevel = parseInt(localStorage.getItem("bestLevel") || "1");
@@ -210,8 +213,19 @@ export default class CreateState extends P.State {
     this.timerRunning = false;
     this.gameOverTriggered = false;
     this.timerStartTime = 0;
-
     this.initGame();
+
+    this.scoreText = this.add.text(
+      this.world.centerX,
+      20, // ← верхняя часть экрана
+      `Score: ${this.score}`,
+      {
+        font: "bold 32px Arial",
+        fill: "#000000",
+      }
+    );
+    this.scoreText.anchor.set(0.5);
+
     this.timerStartTime = 0;
     this.timerRunning = false;
     this.timerText.setText("00:00");
@@ -296,7 +310,7 @@ export default class CreateState extends P.State {
       timeLeft: Math.max(this.remainingTime, 0),
     });
     localStorage.setItem("leaderboard", JSON.stringify(leaderboard));
-    
+
     this.level = 1;
     // Увеличение
     setTimeout(() => {
@@ -306,6 +320,8 @@ export default class CreateState extends P.State {
     setTimeout(() => {
       levelCompleteDiv.remove();
     }, 550);
+    this.countdownStartTime = 0;
+    this.score = 0;
     this.state.restart();
   }
 
@@ -337,6 +353,14 @@ export default class CreateState extends P.State {
         .to({ x: 1.0, y: 1.0 }, 300, Phaser.Easing.Back.Out, true);
       this.arrowText.setText(this.arrowsLeft.toString());
       const nextLevel = this.level + 1;
+
+      const elapsed = this.time.now - this.countdownStartTime;
+      const timeLeft = Math.max(0, this.countdownDuration - elapsed);
+      const countTimeLeft = Math.round(timeLeft / 10);
+      const gained = this.level * countTimeLeft;
+
+      this.score += gained;
+      this.scoreText.setText(`Score: ${this.score}`);
 
       if (this.arrowsLeft === 0) {
         const savedBest = localStorage.getItem("bestLevel");
@@ -373,52 +397,52 @@ export default class CreateState extends P.State {
           name = prompt("Enter your name") || "Anonymous";
           localStorage.setItem("playerName", name);
         }
-    
-        
+
+
         // Увеличение
         setTimeout(() => {
           levelCompleteDiv.style.transform = "translateX(-50%) scale(1.6)";
         }, 50);
-        
+
         setTimeout(() => {
           levelCompleteDiv.remove();
         }, 550);
+        this.countdownStartTime = 0;
         this.state.restart();
         return;
       }
-      
-      
+
+
       const newArrow = this.add.sprite(this.arrow.x, this.arrow.y, "arrow");
       newArrow.anchor.set(0.5);
       newArrow.scale.set(isMobile ? 0.7 : 1);
-      
+
       newArrow.impactAngle = this.target.angle;
-      
+
       this.arrowGroup.add(newArrow);
       this.arrow.y = this.arrowStartY;
     } else {
       this.timerRunning = false;
       this.failSound.play();
- 
-      this.remainingTime = this.countdownDuration - (this.time.now - this.timerStart);
+
+      localStorage.setItem("lastScore", this.score.toString());
       let name = localStorage.getItem("playerName");
       if (!name) {
         name = prompt("Enter your name") || "Anonymous";
         localStorage.setItem("playerName", name);
       }
-  
+
+      const score = this.score; // или как у тебя она называется
+      
       const leaderboard = JSON.parse(localStorage.getItem("leaderboard") || "[]");
-      leaderboard.push({
-        name,
-        level: this.level,
-        timeLeft: this.remainingTime,
-      });
+      leaderboard.push({ name, score });
       localStorage.setItem("leaderboard", JSON.stringify(leaderboard));
       
+
       this.arrow.anchor.set(0.5);
       this.add.tween(this.arrow)
-      .to({ angle: this.arrow.angle + 720 }, 600, Phaser.Easing.Cubic.Out, true); // 2 оборота
-      
+        .to({ angle: this.arrow.angle + 720 }, 600, Phaser.Easing.Cubic.Out, true);
+
       this.Losttween = this.add.tween(this.arrow);
       this.Losttween.to(
         { x: this.world.centerX + 800, y: this.bow.y + 300 },
@@ -432,6 +456,8 @@ export default class CreateState extends P.State {
         //gameOptions.rotationSpeed = 2;
         this.level = 1;
         this.levelDom.remove();
+        this.countdownStartTime = 0;
+        this.score = 0;
         this.state.restart();
         localStorage.setItem("currentLevel", "1");
 
@@ -440,6 +466,9 @@ export default class CreateState extends P.State {
   }
 
   private arrowThrow() {
+    if (!this.countdownStartTime) {
+      this.countdownStartTime = this.time.now;
+    }
     if (!this.timerRunning) {
       this.countdownDuration = this.multiplier * this.arrowsLeft * 1000;
       this.timerStartTime = this.time.now;
