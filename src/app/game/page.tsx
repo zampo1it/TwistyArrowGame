@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from 'react';
 import BackButton from '@/components/BackButton';
+import SpriteUploader from "@/components/SpriteLoader";
+
 
 export default function GamePage() {
   const gameContainer = useRef<HTMLDivElement>(null);
@@ -27,9 +29,11 @@ export default function GamePage() {
   }, []);
 
   return (
-    <main className="w-screen h-screen m-0 p-0 overflow-hidden bg-black">
+    <main className="w-screen h-screen m-0 p-0 overflow-hidden">
       <div ref={gameContainer} className="w-full h-full" />
-      <BackButton /> 
+      <SpriteUploader /> 
+
+      {/* <BackButton />  */}
 
     </main>
   );

@@ -11,17 +11,15 @@ export default class Game {
     document.body.appendChild(container);
 
     const game = new Phaser.Game(
+      
       window.innerWidth,
       window.innerHeight,
       Phaser.CANVAS,
       parent
     );
 
-    // Добавляем состояния
     game.state.add('loadstate', LoadState, false);
     game.state.add('createstate', CreateState, false);
-
-    // Запуск с загрузочного состояния
     game.state.start('loadstate');
 
   }

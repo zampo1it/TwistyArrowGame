@@ -3,7 +3,8 @@ const P: any = Phaser;
 const gameOptions = {
   rotationSpeed: 2,
   throwSpeed: 150,
-  minAngle: 7,
+  rotationModifier: 0.3,
+  multiplier: 2,
 };
 
 let isMobile = false;
@@ -25,7 +26,7 @@ export default class CreateState extends P.State {
   private failSound!: any;
   private score: number = 0;
   private scoreText!: any;
-
+  private minAngle: number = 7;
   private countdownStartTime: number = 0;
 
 
@@ -39,7 +40,18 @@ export default class CreateState extends P.State {
   private timerRunning: boolean = false;
   private countdownDuration: number = 0;
   private gameOverTriggered: boolean = false;
-  private multiplier: number = 2; // CLIENT CAN CHANGE THIS
+  private isPaused: boolean = false;
+
+  private togglePause() {
+    this.isPaused = !this.isPaused;
+    this.game.paused = this.isPaused;
+  
+    if (this.isPaused) {
+      console.log("Game paused");
+    } else {
+      console.log("Game resumed");
+    }
+  }
 
   private setupTarget() {
     this.target.anchor.set(0.5);
@@ -59,9 +71,11 @@ export default class CreateState extends P.State {
     levelDiv.id = "levelDiv";
 
     levelDiv.className = `
-      fixed left-4 top-7 
-      bg-black rounded-md overflow-hidden shadow-lg border border-white/10 w-28 z-50
-    `;
+    fixed left-4 top-7
+    bg-black rounded-md overflow-hidden shadow-lg border border-white/10
+    w-18 sm:w-28 z-50
+  `;
+
     levelDiv.innerHTML = `
       <div class="text-xs uppercase bg-white/10 px-3 py-1 text-white tracking-wider rounded-t-md border-b border-white/20 text-center">
         LEVEL
@@ -81,9 +95,11 @@ export default class CreateState extends P.State {
     bestDiv.id = "bestDiv";
 
     bestDiv.className = `
-      fixed right-4 top-7 
-      bg-black rounded-md overflow-hidden shadow-lg border border-white/10 w-28 z-50
-    `;
+    fixed right-4 top-7
+    bg-black rounded-md overflow-hidden shadow-lg border border-white/10
+    w-18 sm:w-28 z-50
+  `;
+
     bestDiv.innerHTML = `
       <div class="text-xs uppercase bg-white/10 px-3 py-1 text-white tracking-wider rounded-t-md border-b border-white/20 text-center">
         BEST
@@ -100,7 +116,7 @@ export default class CreateState extends P.State {
   private initGame() {
     this.createDomUI();
 
-    gameOptions.rotationSpeed = 2 + (this.level - 1) * 0.3;
+    gameOptions.rotationSpeed = 2 + (this.level - 1) * gameOptions.rotationModifier;
 
     const savedBest = localStorage.getItem("bestLevel");
     bestLevel = savedBest ? parseInt(savedBest) : 1;
@@ -194,7 +210,10 @@ export default class CreateState extends P.State {
   }
 
   create() {
-    localStorage.setItem("gameMultiplier", this.multiplier.toString());
+    localStorage.setItem("gameMultiplier", gameOptions.multiplier.toString());
+
+    const spaceKey = this.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR);
+    spaceKey.onDown.add(this.togglePause, this);
 
     const navigationEntry = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming;
     if (!navigationEntry?.type.includes("reload")) {
@@ -202,19 +221,21 @@ export default class CreateState extends P.State {
     }
     this.physics.startSystem(P.Physics.ARCADE);
     this.stage.backgroundColor = "#fff6de";
+
     isMobile = this.game.device.android || this.game.device.iOS;
 
     this.timerRunning = false;
     this.gameOverTriggered = false;
     this.timerStartTime = 0;
     this.initGame();
+    const scoreFontSize = isMobile ? "18px" : "32px";
 
     this.scoreText = this.add.text(
       this.world.centerX,
       20, // ← верхняя часть экрана
       `Score: ${this.score}`,
       {
-        font: "bold 32px Arial",
+        font: `bold ${scoreFontSize} Arial`,
         fill: "#000000",
       }
     );
@@ -222,7 +243,7 @@ export default class CreateState extends P.State {
 
     this.timerStartTime = 0;
     this.timerRunning = false;
-    const cdS = (this.arrowsLeft || this.level + 2) * this.multiplier;
+    const cdS = (this.arrowsLeft || this.level + 2) * gameOptions.multiplier;
 
     this.timerText.setText(cdS + ":00");
   }
@@ -329,7 +350,7 @@ export default class CreateState extends P.State {
     for (const child of children) {
       if (
         Math.abs(P.Math.getShortestAngle(this.target.angle, child.impactAngle)) <
-        gameOptions.minAngle
+        this.minAngle
       ) {
         this.validThrough = false;
         break;
@@ -429,11 +450,11 @@ export default class CreateState extends P.State {
       }
 
       const score = this.score; // или как у тебя она называется
-      
+
       const leaderboard = JSON.parse(localStorage.getItem("leaderboard") || "[]");
       leaderboard.push({ name, score });
       localStorage.setItem("leaderboard", JSON.stringify(leaderboard));
-      
+
 
       this.arrow.anchor.set(0.5);
       this.add.tween(this.arrow)
@@ -466,7 +487,7 @@ export default class CreateState extends P.State {
       this.countdownStartTime = this.time.now;
     }
     if (!this.timerRunning) {
-      this.countdownDuration = this.multiplier * this.arrowsLeft * 1000;
+      this.countdownDuration = gameOptions.multiplier * this.arrowsLeft * 1000;
       this.timerStartTime = this.time.now;
       this.timerRunning = true;
     }
