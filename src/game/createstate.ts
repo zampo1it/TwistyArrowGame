@@ -28,12 +28,9 @@ export default class CreateState extends P.State {
   private scoreText!: any;
   private minAngle: number = 7;
   private countdownStartTime: number = 0;
-
-
   private level: number = 1;
   private arrowsLeft!: number;
   private arrowText!: any;
-
   private timerText!: any;
   private timerStartTime: number = 0;
   private reamingTime: number = 0;
@@ -41,6 +38,8 @@ export default class CreateState extends P.State {
   private countdownDuration: number = 0;
   private gameOverTriggered: boolean = false;
   private isPaused: boolean = false;
+  private isLosing: boolean = false;
+
 
   private togglePause() {
     this.isPaused = !this.isPaused;
@@ -439,6 +438,8 @@ export default class CreateState extends P.State {
       this.arrowGroup.add(newArrow);
       this.arrow.y = this.arrowStartY;
     } else {
+      this.isLosing = true;
+
       this.timerRunning = false;
       this.failSound.play();
 
@@ -470,11 +471,12 @@ export default class CreateState extends P.State {
 
 
       this.Losttween.onComplete.add(() => {
-        //gameOptions.rotationSpeed = 2;
         this.level = 1;
         this.levelDom.remove();
         this.countdownStartTime = 0;
         this.score = 0;
+        this.isLosing = false;
+
         this.state.restart();
         localStorage.setItem("currentLevel", "1");
 
@@ -483,6 +485,9 @@ export default class CreateState extends P.State {
   }
 
   private arrowThrow() {
+    if (this.isLosing) {
+      return;
+    }
     if (!this.countdownStartTime) {
       this.countdownStartTime = this.time.now;
     }
